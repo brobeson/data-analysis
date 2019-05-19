@@ -2,6 +2,7 @@
 
 import argparse
 import os.path
+import sys
 
 __version__="0.0.0"
 
@@ -55,7 +56,7 @@ def _parse_arguments():
     )
     parser.add_argument(
         "--ground-truth-root",
-        default="~/data/py-MDNet/results",
+        default="~/Videos/otb",
         help="The root directory which contains the ground truth sequence "
             "data. This directory should have each sequence as a subdirectory. "
             "Within each sequence subdirectory should be a file with the "
@@ -63,12 +64,31 @@ def _parse_arguments():
         nargs="?"
     )
     parser.add_argument(
-        "--sequence",
-        help="The sequence to analyze. If omitted, all sequences are analyzed.",
-        nargs="?"
+        "sequences",
+        help="The sequences to analyze. If omitted, all sequences are analyzed.",
+        nargs="*"
     )
     return parser.parse_args()
 
 
+def _validate_arguments():
+    arguments.experimental_root = os.path.expanduser(arguments.experimental_root)
+    arguments.control_root = os.path.expanduser(arguments.control_root)
+    arguments.ground_truth_root = os.path.expanduser(arguments.ground_truth_root)
+    if not os.path.isdir(arguments.experimental_root):
+        sys.exit(f"{arguments.experimental_root} is not a directory.")
+    if not os.path.isdir(arguments.control_root):
+        sys.exit(f"{arguments.control_root} is not a directory.")
+    if not os.path.isdir(arguments.ground_truth_root):
+        sys.exit(f"{arguments.ground_truth_root} is not a directory.")
+
+
+def _get_all_sequences():
+    return next(os.walk(arguments.ground_truth_root))[1]
+
+
 if __name__ == "__main__":
-    ARGUMENTS = _parse_arguments()
+    arguments = _parse_arguments()
+    _validate_arguments()
+    if len(arguments.sequences) == 0:
+        arguments.sequences = _get_all_sequences()
