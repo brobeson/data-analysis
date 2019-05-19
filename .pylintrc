@@ -1,0 +1,35 @@
+[MASTER]
+jobs=0
+
+
+[MESSAGES CONTROL]
+enable=c-extension-no-member
+
+
+[REPORTS]
+msg-template='{path}:{line}: [{msg_id} {symbol}] {obj} {msg}'
+output-format=colorized
+score=no
+
+
+[MISCELLANEOUS]
+notes=FIXME,
+      XXX,
+      TODO,
+      BUG,
+      HACK
+
+
+[FORMAT]
+max-line-length=80
+indent-after-paren=0
+
+
+[LOGGING]
+logging-format-style=new
+
+
+[BASIC]
+module-rgx=[a-z\-]
+attr-rgx=[a-z_][a-z0-9_]{0,30}$
+variable-naming-style=any

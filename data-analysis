@@ -1,28 +1,30 @@
 #!/usr/bin/env python3
 
+"""Generate graphs of IoU data."""
+
 import argparse
 import os.path
 import sys
 
-__version__="0.0.0"
-
-class BoundingBox:
-    def __init__(x, y, width, height):
-        self.x = x
-        self.y = y
-        self.width = width
-        self.height = height
+__version__ = "0.0.0"
 
 
 def _make_bounding_box(string):
     values = string.strip().rsplit(",")
-    return BoundingBox(values[0], values[1], values[2], values[3])
+    return {
+        "x": values[0],
+        "y": values[1],
+        "width": values[2],
+        "height": values[3],
+    }
 
 
 def _read_ground_truth():
-    with open(os.path.expanduser("~/Videos/otb/KiteSurf/groundtruth_rect.txt")) as f:
+    with open(
+        os.path.expanduser("~/Videos/otb/KiteSurf/groundtruth_rect.txt")
+    ) as f:
         lines = f.readlines()
-    gt = [_make_bound_box(line) for line in lines]
+    gt = [_make_bounding_box(line) for line in lines]
     return gt
 
 
@@ -34,47 +36,52 @@ def _parse_arguments():
         "--version",
         action="version",
         version=__version__,
-        help="Display the version, and exit."
+        help="Display the version, and exit.",
     )
     parser.add_argument(
         "--experimental-root",
         default="~/data/py-MDNet/results",
         help="The root directory which contains the experimental sequence "
-            "data. This directory should have each sequence as a subdirectory. "
-            "Within each sequence subdirectory should be a file with the "
-            "experimental bounding box data.",
-        nargs="?"
+        "data. This directory should have each sequence as a subdirectory. "
+        "Within each sequence subdirectory should be a file with the "
+        "experimental bounding box data.",
+        nargs="?",
     )
     parser.add_argument(
         "--control-root",
         default="~/data/py-MDNet/control",
         help="The root directory which contains the control sequence "
-            "data. This directory should have each sequence as a subdirectory. "
-            "Within each sequence subdirectory should be a file with the "
-            "control bounding box data.",
-        nargs="?"
+        "data. This directory should have each sequence as a subdirectory. "
+        "Within each sequence subdirectory should be a file with the "
+        "control bounding box data.",
+        nargs="?",
     )
     parser.add_argument(
         "--ground-truth-root",
         default="~/Videos/otb",
         help="The root directory which contains the ground truth sequence "
-            "data. This directory should have each sequence as a subdirectory. "
-            "Within each sequence subdirectory should be a file with the "
-            "ground truth bounding box data.",
-        nargs="?"
+        "data. This directory should have each sequence as a subdirectory. "
+        "Within each sequence subdirectory should be a file with the "
+        "ground truth bounding box data.",
+        nargs="?",
     )
     parser.add_argument(
         "sequences",
-        help="The sequences to analyze. If omitted, all sequences are analyzed.",
-        nargs="*"
+        help="The sequences to analyze. If omitted, all sequences are "
+        "analyzed.",
+        nargs="*",
     )
     return parser.parse_args()
 
 
 def _validate_arguments():
-    arguments.experimental_root = os.path.expanduser(arguments.experimental_root)
+    arguments.experimental_root = os.path.expanduser(
+        arguments.experimental_root
+    )
     arguments.control_root = os.path.expanduser(arguments.control_root)
-    arguments.ground_truth_root = os.path.expanduser(arguments.ground_truth_root)
+    arguments.ground_truth_root = os.path.expanduser(
+        arguments.ground_truth_root
+    )
     if not os.path.isdir(arguments.experimental_root):
         sys.exit(f"{arguments.experimental_root} is not a directory.")
     if not os.path.isdir(arguments.control_root):
@@ -88,7 +95,7 @@ def _get_all_sequences():
 
 
 if __name__ == "__main__":
-    arguments = _parse_arguments()
+    arguments = _parse_arguments()  # pylint: disable=C0103
     _validate_arguments()
-    if len(arguments.sequences) == 0:
+    if not arguments.sequences:
         arguments.sequences = _get_all_sequences()
