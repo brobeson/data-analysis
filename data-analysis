@@ -50,6 +50,12 @@ def _parse_arguments():
         nargs="?",
     )
     parser.add_argument(
+        "--output-root",
+        default=os.getcwd(),
+        help="The root directory to which the graphs should be written.",
+        nargs="?",
+    )
+    parser.add_argument(
         "sequences",
         help="The sequences to analyze. If omitted, all sequences are "
         "analyzed.",
@@ -66,12 +72,15 @@ def _validate_arguments():
     arguments.ground_truth_root = os.path.expanduser(
         arguments.ground_truth_root
     )
+    arguments.output_root = os.path.expanduser(arguments.output_root)
     if not os.path.isdir(arguments.experimental_root):
         sys.exit(f"{arguments.experimental_root} is not a directory.")
     if not os.path.isdir(arguments.control_root):
         sys.exit(f"{arguments.control_root} is not a directory.")
     if not os.path.isdir(arguments.ground_truth_root):
         sys.exit(f"{arguments.ground_truth_root} is not a directory.")
+    if not os.path.isdir(arguments.output_root):
+        sys.exit(f"{arguments.output_root} is not a directory.")
 
 
 def _get_all_sequences():
@@ -137,15 +146,14 @@ def _calculate_ious(ground_truth_data, tracking_data):
 
 def _graph_ious():
     plt.suptitle(sequence)
-    plt.plot(range(len(control_ious)), control_ious, "b.")
+    plt.plot(range(len(control_ious)), control_ious, "b+")
     plt.ylabel("Overlap")
     plt.xlabel("Frame")
-    plt.axhline(y=sum(control_ious) / len(control_ious))
-    plt.plot(range(len(experimental_ious)), experimental_ious, "r.")
+    plt.axhline(y=sum(control_ious) / len(control_ious), color="blue")
+    plt.plot(range(len(experimental_ious)), experimental_ious, "rx")
     plt.axhline(y=sum(experimental_ious) / len(experimental_ious), color="red")
     plt.legend([None, "control", None, "experimental"])
-    # plt.savefig(f"iou_graphs/{sequence_name}.svg")
-    plt.show()
+    plt.savefig(os.path.join(arguments.output_root, f"{sequence}.svg"))
 
 
 if __name__ == "__main__":
