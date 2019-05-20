@@ -7,6 +7,8 @@ import json
 import os.path
 import sys
 
+import matplotlib.pyplot as plt
+
 __version__ = "0.0.0"
 
 
@@ -79,10 +81,10 @@ def _get_all_sequences():
 def _make_bounding_box_from_text(string):
     values = string.strip().rsplit(",")
     return {
-        "x": values[0],
-        "y": values[1],
-        "width": values[2],
-        "height": values[3],
+        "x": float(values[0]),
+        "y": float(values[1]),
+        "width": float(values[2]),
+        "height": float(values[3]),
     }
 
 
@@ -111,6 +113,41 @@ def _read_bounding_boxes(filename):
     return None
 
 
+def _calculate_iou(gt, tracking):
+    left = max(gt["x"], tracking["x"])
+    right = min(gt["x"] + gt["width"], tracking["x"] + tracking["width"])
+    top = max(gt["y"], tracking["y"])
+    bottom = min(gt["y"] + gt["height"], tracking["y"] + tracking["height"])
+    intersection = max(0, right - left) * max(0, bottom - top)
+    union = (
+        gt["width"] * gt["height"]
+        + tracking["width"] * tracking["height"]
+        - intersection
+    )
+    return intersection / union
+
+
+def _calculate_ious(ground_truth_data, tracking_data):
+    assert len(ground_truth_data) == len(tracking_data)
+    return [
+        _calculate_iou(gt, tracking)
+        for gt, tracking in zip(ground_truth_data, tracking_data)
+    ]
+
+
+def _graph_ious():
+    plt.suptitle(sequence)
+    plt.plot(range(len(control_ious)), control_ious, "b.")
+    plt.ylabel("Overlap")
+    plt.xlabel("Frame")
+    plt.axhline(y=sum(control_ious) / len(control_ious))
+    plt.plot(range(len(experimental_ious)), experimental_ious, "r.")
+    plt.axhline(y=sum(experimental_ious) / len(experimental_ious), color="red")
+    plt.legend([None, "control", None, "experimental"])
+    # plt.savefig(f"iou_graphs/{sequence_name}.svg")
+    plt.show()
+
+
 if __name__ == "__main__":
     arguments = _parse_arguments()  # pylint: disable=C0103
     _validate_arguments()
@@ -123,6 +160,14 @@ if __name__ == "__main__":
                 arguments.ground_truth_root, sequence, "groundtruth_rect.txt"
             )
         )
+        control_data = _read_bounding_boxes(
+            os.path.join(arguments.control_root, sequence, "result.json")
+        )
         experimental_data = _read_bounding_boxes(
             os.path.join(arguments.experimental_root, sequence, "result.json")
         )
+        control_ious = _calculate_ious(ground_truth_data, control_data)
+        experimental_ious = _calculate_ious(
+            ground_truth_data, experimental_data
+        )
+        _graph_ious()
