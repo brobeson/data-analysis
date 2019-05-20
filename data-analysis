@@ -9,25 +9,6 @@ import sys
 __version__ = "0.0.0"
 
 
-def _make_bounding_box(string):
-    values = string.strip().rsplit(",")
-    return {
-        "x": values[0],
-        "y": values[1],
-        "width": values[2],
-        "height": values[3],
-    }
-
-
-def _read_ground_truth():
-    with open(
-        os.path.expanduser("~/Videos/otb/KiteSurf/groundtruth_rect.txt")
-    ) as f:
-        lines = f.readlines()
-    gt = [_make_bounding_box(line) for line in lines]
-    return gt
-
-
 def _parse_arguments():
     parser = argparse.ArgumentParser(
         description="Analyze bounding box data for overlap."
@@ -94,8 +75,44 @@ def _get_all_sequences():
     return next(os.walk(arguments.ground_truth_root))[1]
 
 
+def _make_bounding_box_from_text(string):
+    values = string.strip().rsplit(",")
+    return {
+        "x": values[0],
+        "y": values[1],
+        "width": values[2],
+        "height": values[3],
+    }
+
+
+def _read_bounding_boxes_from_text(filename):
+    with open(filename) as f:
+        lines = f.readlines()
+    return [_make_bounding_box_from_text(line) for line in lines]
+
+
+# def _read_bounding_boxes_from_json(filename):
+#    return None
+
+
+def _read_bounding_boxes(filename):
+    _, extension = os.path.splitext(filename)
+    if extension == ".txt":
+        return _read_bounding_boxes_from_text(filename)
+    # if extension == ".json":
+    #    return _read_bounding_boxes_from_json(filename)
+    return None
+
+
 if __name__ == "__main__":
     arguments = _parse_arguments()  # pylint: disable=C0103
     _validate_arguments()
     if not arguments.sequences:
         arguments.sequences = _get_all_sequences()
+    for sequence in arguments.sequences:
+        print(f"Analyzing {sequence}")
+        ground_truth_data = _read_bounding_boxes(
+            os.path.join(
+                arguments.ground_truth_root, sequence, "groundtruth_rect.txt"
+            )
+        )

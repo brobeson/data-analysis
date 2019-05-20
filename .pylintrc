@@ -4,6 +4,7 @@ jobs=0
 
 [MESSAGES CONTROL]
 enable=c-extension-no-member
+disable=C0330
 
 
 [REPORTS]
@@ -22,7 +23,6 @@ notes=FIXME,
 
 [FORMAT]
 max-line-length=80
-indent-after-paren=0
 
 
 [LOGGING]
