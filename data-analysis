@@ -3,6 +3,7 @@
 """Generate graphs of IoU data."""
 
 import argparse
+import json
 import os.path
 import sys
 
@@ -91,16 +92,22 @@ def _read_bounding_boxes_from_text(filename):
     return [_make_bounding_box_from_text(line) for line in lines]
 
 
-# def _read_bounding_boxes_from_json(filename):
-#    return None
+def _make_bounding_box_from_json(entry):
+    return {"x": entry[0], "y": entry[1], "width": entry[2], "height": entry[3]}
+
+
+def _read_bounding_boxes_from_json(filename):
+    with open(filename) as f:
+        document = json.load(f)["res"]
+        return [_make_bounding_box_from_json(entry) for entry in document]
 
 
 def _read_bounding_boxes(filename):
     _, extension = os.path.splitext(filename)
     if extension == ".txt":
         return _read_bounding_boxes_from_text(filename)
-    # if extension == ".json":
-    #    return _read_bounding_boxes_from_json(filename)
+    if extension == ".json":
+        return _read_bounding_boxes_from_json(filename)
     return None
 
 
@@ -115,4 +122,7 @@ if __name__ == "__main__":
             os.path.join(
                 arguments.ground_truth_root, sequence, "groundtruth_rect.txt"
             )
+        )
+        experimental_data = _read_bounding_boxes(
+            os.path.join(arguments.experimental_root, sequence, "result.json")
         )
