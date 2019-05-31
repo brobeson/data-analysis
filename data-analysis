@@ -5,11 +5,26 @@
 import argparse
 import json
 import os.path
+import shutil
 import sys
 
 import matplotlib.pyplot as plt
 
 __version__ = "0.0.0"
+
+ATTRIBUTES = [
+    "illumination_variation",
+    "scale_variation",
+    "occlusion",
+    "deformation",
+    "motion_blur",
+    "fast_motion",
+    "in_plane_rotation",
+    "out_of_plane_rotation",
+    "out_of_view",
+    "background_clutter",
+    "low_resolution",
+]
 
 
 def _parse_arguments():
@@ -147,16 +162,42 @@ def _calculate_ious(ground_truth_data, tracking_data):
 
 
 def _graph_ious(sequence, control_ious, experimental_ious, output_root):
+    mean_control = sum(control_ious) / len(control_ious)
+    mean_experimental = sum(experimental_ious) / len(experimental_ious)
     plt.clf()
     plt.suptitle(sequence)
     plt.plot(range(len(control_ious)), control_ious, "b.")
     plt.ylabel("Overlap")
     plt.xlabel("Frame")
-    plt.axhline(y=sum(control_ious) / len(control_ious), color="blue")
+    plt.axhline(y=mean_control, color="blue")
     plt.plot(range(len(experimental_ious)), experimental_ious, "r.")
-    plt.axhline(y=sum(experimental_ious) / len(experimental_ious), color="red")
+    plt.axhline(y=mean_experimental, color="red")
     plt.legend([None, "control", None, "experimental"])
     plt.savefig(os.path.join(output_root, f"{sequence}.svg"))
+    if mean_control <= mean_experimental:
+        os.symlink(
+            f"../{sequence}.svg",
+            os.path.join(output_root, "better", f"{sequence}"),
+        )
+    else:
+        os.symlink(
+            f"../{sequence}.svg",
+            os.path.join(output_root, "worse", f"{sequence}"),
+        )
+
+
+def _make_subdirectory(output_root, subdirectory):
+    directory = os.path.join(output_root, subdirectory)
+    if os.path.isdir(directory):
+        shutil.rmtree(directory)
+    os.mkdir(directory)
+
+
+def _make_subdirectories(output_root):
+    _make_subdirectory(output_root, "better")
+    _make_subdirectory(output_root, "worse")
+    for attribute in ATTRIBUTES:
+        _make_subdirectory(output_root, attribute)
 
 
 def _main():
@@ -165,6 +206,7 @@ def _main():
     if not arguments.sequences:
         arguments.sequences = _get_all_sequences(arguments.ground_truth_root)
     arguments.sequences.sort()
+    _make_subdirectories(arguments.output_root)
     for sequence in arguments.sequences:
         print(f"Analyzing {sequence}")
         ground_truth_data = _read_bounding_boxes(
