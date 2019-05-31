@@ -164,6 +164,7 @@ def _main():
     _validate_arguments(arguments)
     if not arguments.sequences:
         arguments.sequences = _get_all_sequences(arguments.ground_truth_root)
+    arguments.sequences.sort()
     for sequence in arguments.sequences:
         print(f"Analyzing {sequence}")
         ground_truth_data = _read_bounding_boxes(
