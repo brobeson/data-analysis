@@ -5,25 +5,36 @@
 import argparse
 import json
 import os.path
-import shutil
 import sys
 
 import matplotlib.pyplot as plt
 
 __version__ = "0.0.0"
 
+BACKGROUND_CLUTTER = "background_clutter"
+DEFORMATION = "deformation"
+FAST_MOTION = "fast_motion"
+ILLUMINATION_VARIATION = "illumination_variation"
+IN_PLANE_ROTATION = "in_plane_rotation"
+LOW_RESOLUTION = "low_resolution"
+MOTION_BLUR = "motion_blur"
+OCCLUSION = "occlusion"
+OUT_OF_PLANE_ROTATION = "out_of_plane_rotation"
+OUT_OF_VIEW = "out_of_view"
+SCALE_VARIATION = "scale_variation"
+
 ATTRIBUTES = [
-    "illumination_variation",
-    "scale_variation",
-    "occlusion",
-    "deformation",
-    "motion_blur",
-    "fast_motion",
-    "in_plane_rotation",
-    "out_of_plane_rotation",
-    "out_of_view",
-    "background_clutter",
-    "low_resolution",
+    BACKGROUND_CLUTTER,
+    DEFORMATION,
+    FAST_MOTION,
+    ILLUMINATION_VARIATION,
+    IN_PLANE_ROTATION,
+    LOW_RESOLUTION,
+    MOTION_BLUR,
+    OCCLUSION,
+    OUT_OF_PLANE_ROTATION,
+    OUT_OF_VIEW,
+    SCALE_VARIATION,
 ]
 
 
@@ -139,6 +150,13 @@ def _read_bounding_boxes(filename):
     return None
 
 
+def _read_attributes(filename):
+    if os.path.exists(filename):
+        with open(filename) as f:
+            return [l.strip() for l in f.readlines()]
+    return None
+
+
 def _calculate_iou(gt, tracking):  # pylint: disable=C0103
     left = max(gt["x"], tracking["x"])
     right = min(gt["x"] + gt["width"], tracking["x"] + tracking["width"])
@@ -161,19 +179,9 @@ def _calculate_ious(ground_truth_data, tracking_data):
     ]
 
 
-def _graph_ious(sequence, control_ious, experimental_ious, output_root):
-    mean_control = sum(control_ious) / len(control_ious)
-    mean_experimental = sum(experimental_ious) / len(experimental_ious)
-    plt.clf()
-    plt.suptitle(sequence)
-    plt.plot(range(len(control_ious)), control_ious, "b.")
-    plt.ylabel("Overlap")
-    plt.xlabel("Frame")
-    plt.axhline(y=mean_control, color="blue")
-    plt.plot(range(len(experimental_ious)), experimental_ious, "r.")
-    plt.axhline(y=mean_experimental, color="red")
-    plt.legend([None, "control", None, "experimental"])
-    plt.savefig(os.path.join(output_root, f"{sequence}.svg"))
+def _make_symlinks(
+    sequence, output_root, mean_control, mean_experimental, attributes
+):
     if mean_control <= mean_experimental:
         os.symlink(
             f"../{sequence}.svg",
@@ -184,20 +192,51 @@ def _graph_ious(sequence, control_ious, experimental_ious, output_root):
             f"../{sequence}.svg",
             os.path.join(output_root, "worse", f"{sequence}"),
         )
+    if attributes is not None:
+        for attribute in attributes:
+            os.symlink(
+                f"../{sequence}.svg",
+                os.path.join(output_root, attribute, f"{sequence}"),
+            )
 
 
-def _make_subdirectory(output_root, subdirectory):
-    directory = os.path.join(output_root, subdirectory)
-    if os.path.isdir(directory):
-        shutil.rmtree(directory)
-    os.mkdir(directory)
+def _graph_ious(
+    sequence,
+    control_ious,
+    control_mean,
+    experimental_ious,
+    experimental_mean,
+    output_root,
+):
+    plt.clf()
+    plt.suptitle(sequence)
+    plt.plot(range(len(control_ious)), control_ious, "b.")
+    plt.ylabel("Overlap")
+    plt.xlabel("Frame")
+    plt.axhline(y=control_mean, color="blue")
+    plt.plot(range(len(experimental_ious)), experimental_ious, "r.")
+    plt.axhline(y=experimental_mean, color="red")
+    plt.legend([None, "control", None, "experimental"])
+    plt.savefig(os.path.join(output_root, f"{sequence}.svg"))
 
 
 def _make_subdirectories(output_root):
-    _make_subdirectory(output_root, "better")
-    _make_subdirectory(output_root, "worse")
+    os.makedirs(os.path.join(output_root, "better"), exist_ok=True)
+    os.makedirs(os.path.join(output_root, "worse"), exist_ok=True)
     for attribute in ATTRIBUTES:
-        _make_subdirectory(output_root, attribute)
+        os.makedirs(os.path.join(output_root, attribute), exist_ok=True)
+
+
+def _clean_up_sequence(output_root, sequence):
+    if os.path.islink(os.path.join(output_root, "better", f"{sequence}")):
+        os.unlink(os.path.join(output_root, "better", f"{sequence}"))
+    if os.path.islink(os.path.join(output_root, "worse", f"{sequence}")):
+        os.unlink(os.path.join(output_root, "worse", f"{sequence}"))
+    for attribute in ATTRIBUTES:
+        if os.path.islink(os.path.join(output_root, attribute, f"{sequence}")):
+            os.unlink(os.path.join(output_root, attribute, f"{sequence}"))
+    if os.path.exists(os.path.join(output_root, f"{sequence}.svg")):
+        os.remove(os.path.join(output_root, f"{sequence}.svg"))
 
 
 def _main():
@@ -207,31 +246,59 @@ def _main():
         arguments.sequences = _get_all_sequences(arguments.ground_truth_root)
     arguments.sequences.sort()
     _make_subdirectories(arguments.output_root)
+    BAD_SEQUENCES = ["David", "Diving", "Football1", "Freeman3", "Freeman4"]
     for sequence in arguments.sequences:
-        print(f"Analyzing {sequence}")
-        ground_truth_data = _read_bounding_boxes(
-            os.path.join(
-                arguments.ground_truth_root, sequence, "groundtruth_rect.txt"
+        if sequence not in BAD_SEQUENCES:
+            print(f"Analyzing {sequence}")
+            _clean_up_sequence(arguments.output_root, sequence)
+            attributes = _read_attributes(
+                os.path.join(
+                    arguments.ground_truth_root, sequence, "attributes.txt"
+                )
             )
-        )
-        control_data = _read_bounding_boxes(
-            os.path.join(arguments.control_root, sequence, "result.json")
-        )
-        experimental_data = _read_bounding_boxes(
-            os.path.join(arguments.experimental_root, sequence, "result.json")
-        )
-        if (
-            ground_truth_data is not None
-            and control_data is not None
-            and experimental_data is not None
-        ):
-            control_ious = _calculate_ious(ground_truth_data, control_data)
-            experimental_ious = _calculate_ious(
-                ground_truth_data, experimental_data
+            ground_truth_data = _read_bounding_boxes(
+                os.path.join(
+                    arguments.ground_truth_root,
+                    sequence,
+                    "groundtruth_rect.txt",
+                )
             )
-            _graph_ious(
-                sequence, control_ious, experimental_ious, arguments.output_root
+            control_data = _read_bounding_boxes(
+                os.path.join(arguments.control_root, sequence, "result.json")
             )
+            experimental_data = _read_bounding_boxes(
+                os.path.join(
+                    arguments.experimental_root, sequence, "result.json"
+                )
+            )
+            if (
+                ground_truth_data is not None
+                and control_data is not None
+                and experimental_data is not None
+            ):
+                control_ious = _calculate_ious(ground_truth_data, control_data)
+                experimental_ious = _calculate_ious(
+                    ground_truth_data, experimental_data
+                )
+                control_mean = sum(control_ious) / len(control_ious)
+                experimental_mean = sum(experimental_ious) / len(
+                    experimental_ious
+                )
+                _graph_ious(
+                    sequence,
+                    control_ious,
+                    control_mean,
+                    experimental_ious,
+                    experimental_mean,
+                    arguments.output_root,
+                )
+                _make_symlinks(
+                    sequence,
+                    arguments.output_root,
+                    control_mean,
+                    experimental_mean,
+                    attributes,
+                )
 
 
 if __name__ == "__main__":
