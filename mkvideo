@@ -1,0 +1,255 @@
+#!/usr/bin/env python3
+
+"""Create a video from a tracking sequence and results."""
+
+import argparse
+import json
+import os.path
+import pdb
+import sys
+
+from PIL import Image
+import cv2
+
+import numpy as np
+import matplotlib
+#matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+
+
+__version__ = "0.0.0"
+
+def _parse_arguments():
+    parser = argparse.ArgumentParser(description="Create a video from a sequence and tracking results")
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=__version__,
+        help="Display the version, and exit.",
+    )
+    parser.add_argument(
+        "sequence",
+        help="The sequence from which to create a video.",
+    )
+    return parser.parse_args()
+
+
+def printProgressBar (iteration, total, prefix = '', suffix = '', decimals = 1, length = 100, fill = '█'):
+    """
+    Call in a loop to create terminal progress bar
+    @params:
+        iteration   - Required  : current iteration (Int)
+        total       - Required  : total iterations (Int)
+        prefix      - Optional  : prefix string (Str)
+        suffix      - Optional  : suffix string (Str)
+        decimals    - Optional  : positive number of decimals in percent complete (Int)
+        length      - Optional  : character length of bar (Int)
+        fill        - Optional  : bar fill character (Str)
+    
+    Adapted from
+    https://stackoverflow.com/questions/3173320/text-progress-bar-in-the-console
+    """
+    percent = ("{0:." + str(decimals) + "f}").format(100 * (iteration / float(total)))
+    filledLength = int(length * iteration // total)
+    bar = fill * filledLength + ' ' * (length - filledLength)
+    print('\r%s |%s| %s%% %s' % (prefix, bar, percent, suffix), end = '\r')
+    # Print New Line on Complete
+    if iteration == total: 
+        print()
+
+
+def _make_bounding_box_from_text(string):
+    values = string.strip().rsplit(",")
+    return {
+        "x": float(values[0]),
+        "y": float(values[1]),
+        "width": float(values[2]),
+        "height": float(values[3]),
+    }
+
+
+def _read_bounding_boxes_from_text(filename):
+    with open(filename) as f:
+        lines = f.readlines()
+    return [_make_bounding_box_from_text(line) for line in lines]
+
+
+def _make_bounding_box_from_json(entry):
+    return {"x": entry[0], "y": entry[1], "width": entry[2], "height": entry[3]}
+
+
+def _read_bounding_boxes_from_json(filename):
+    with open(filename) as f:
+        document = json.load(f)["res"]
+        return [_make_bounding_box_from_json(entry) for entry in document]
+
+
+def _read_bounding_boxes(filename):
+    if os.path.exists(filename):
+        _, extension = os.path.splitext(filename)
+        if extension == ".txt":
+            return _read_bounding_boxes_from_text(filename)
+        if extension == ".json":
+            return _read_bounding_boxes_from_json(filename)
+    print(f"error: {filename} does not exist")
+    return None
+
+
+def update_line(num, data, line):
+    line.set_data(data[..., :num])
+    return line,
+
+
+def write_matplotlib():
+    np.random.seed(19680801)
+    writer = animation.AVConvWriter(fps=30, bitrate=-1)
+    #Writer = animation.writers['ffmpeg']
+    #writer = Writer(fps=15, metadata=dict(artist='Me'), bitrate=1800)
+    fig1 = plt.figure()
+    data = np.random.rand(2, 25)
+    l, = plt.plot([], [], 'r-')
+    plt.xlim(0, 1)
+    plt.ylim(0, 1)
+    plt.xlabel('x')
+    plt.title('test')
+    line_ani = animation.FuncAnimation(
+        fig1,
+        update_line,
+        25,
+        fargs=(data, l),
+        interval=50,
+        blit=True,
+    )
+    line_ani.save('lines.mp4', writer=writer)
+
+    #fig2 = plt.figure()
+    #x = np.arange(-9, 10)
+    #y = np.arange(-9, 10).reshape(-1, 1)
+    #base = np.hypot(x, y)
+    #ims = []
+    #for add in np.arange(15):
+    #    ims.append((plt.pcolor(x, y, base + add, norm=plt.Normalize(0, 30)),))
+    #im_ani = animation.ArtistAnimation(
+    #    fig2,
+    #    ims,
+    #    interval=50,
+    #    repeat_delay=3000,
+    #    blit=True,
+    #)
+    #im_ani.save('im.mp4', writer=writer)
+
+
+def write_cv2(directory, images):
+    frame = cv2.imread(os.path.join(directory, images[0]))
+    #cv2.imshow('frame', frame)
+    width, height, layers = frame.shape
+    #video = cv2.VideoWriter("foo.mp4", cv2.VideoWriter_fourcc('M', 'P', '4', 'V'), 30, (width, height))
+    video = cv2.VideoWriter("foo.mp4", 0x7634706d, 30, (width, height))
+    length = len(images)
+    for i, image in enumerate(images):
+        video.write(cv2.imread(os.path.join(directory, image)))
+        printProgressBar(
+            i + 1,
+            length,
+            #prefix="Progress:",
+            #suffix="Complete",
+            length=70,
+        )
+    video.release()
+    cv2.destroyAllWindows()
+
+
+def display(directory, images, ground_truth_data, experimental_data, control_data):
+    dpi = 80
+    image = Image.open(os.path.join(directory, images[0])).convert('RGB')
+    figure_size = (image.size[0] / dpi, image.size[1] / dpi)
+    figure = plt.figure(frameon=False, figsize=figure_size, dpi=dpi)
+    axes = plt.Axes(figure, [0, 0, 1, 1])
+    axes.set_axis_off()
+    figure.add_axes(axes)
+    im = axes.imshow(image, aspect='auto')
+    ground_truth_rectangle = plt.Rectangle(
+        (ground_truth_data[0]["x"], ground_truth_data[0]["y"]),
+        ground_truth_data[0]["width"],
+        ground_truth_data[0]["height"],
+        linewidth=2,
+        edgecolor="#ff0000",
+        zorder=1,
+        fill=False,
+    )
+    experimental_rectangle = plt.Rectangle(
+        (experimental_data[0]["x"], experimental_data[0]["y"]),
+        experimental_data[0]["width"],
+        experimental_data[0]["height"],
+        linewidth=2,
+        edgecolor="#00ff00",
+        zorder=1,
+        fill=False,
+    )
+    control_rectangle = plt.Rectangle(
+        (control_data[0]["x"], control_data[0]["y"]),
+        control_data[0]["width"],
+        control_data[0]["height"],
+        linewidth=2,
+        edgecolor="#0000ff",
+        zorder=1,
+        fill=False,
+    )
+    axes.add_patch(ground_truth_rectangle)
+    axes.add_patch(experimental_rectangle)
+    axes.add_patch(control_rectangle)
+    plt.draw()
+    plt.pause(1)
+    for image_file, ground_truth, experimental, control in zip(images[1:], ground_truth_data[1:], experimental_data[1:], control_data[1:]):
+        image = Image.open(os.path.join(directory, image_file)).convert('RGB')
+        im.set_data(Image.open(os.path.join(directory, image_file)).convert("RGB"))
+        ground_truth_rectangle.set_xy((ground_truth["x"], ground_truth["y"]))
+        ground_truth_rectangle.set_width(ground_truth["width"])
+        ground_truth_rectangle.set_height(ground_truth["height"])
+        control_rectangle.set_xy((control["x"], control["y"]))
+        control_rectangle.set_width(control["width"])
+        control_rectangle.set_height(control["height"])
+        experimental_rectangle.set_xy((experimental["x"], experimental["y"]))
+        experimental_rectangle.set_width(experimental["width"])
+        experimental_rectangle.set_height(experimental["height"])
+        plt.draw()
+        plt.pause(1.0 / 120.0)
+
+
+def _main():
+    arguments = _parse_arguments()
+    directory = os.path.expanduser(os.path.join("~/Videos/otb/", arguments.sequence, "img"))
+    if not os.path.isdir(directory):
+        sys.exit(f"error: {directory} is not a directory")
+    images = [image for image in os.listdir(directory) if image.endswith(".jpg")]
+    images.sort()
+    ground_truth_data = _read_bounding_boxes(
+        os.path.join(
+            os.path.expanduser("~/Videos/otb/"),
+            arguments.sequence,
+            "groundtruth_rect.txt",
+        )
+    )
+    control_data = _read_bounding_boxes(
+        os.path.join(
+            os.path.expanduser("~/repositories/phd/mdnet-data/control"),
+            arguments.sequence,
+            "result.json",
+        )
+    )
+    experimental_data = _read_bounding_boxes(
+        os.path.join(
+            os.path.expanduser("~/repositories/phd/mdnet-data/dual_cnn"),
+            arguments.sequence,
+            "result.json",
+        )
+    )
+    display(directory, images, ground_truth_data, experimental_data, control_data)
+    #write_cv2(directory, images)
+    #write_matplotlib()
+    #image = Image.open(os.path.join(directory, "0001.jpg")).convert('RGB')
+
+
+if __name__ == "__main__":
+    _main()
