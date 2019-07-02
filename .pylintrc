@@ -4,7 +4,7 @@ jobs=0
 
 [MESSAGES CONTROL]
 enable=c-extension-no-member
-disable=C0330
+disable=C0330,bad-indentation
 
 
 [REPORTS]
