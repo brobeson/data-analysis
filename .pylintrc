@@ -21,15 +21,12 @@ notes=FIXME,
       HACK
 
 
-[FORMAT]
-max-line-length=80
-
-
 [LOGGING]
 logging-format-style=new
 
 
 [BASIC]
+argument-rgx=[a-z_][a-z0-9_]{0,30}$
 module-rgx=[a-z\-]
 attr-rgx=[a-z_][a-z0-9_]{0,30}$
-variable-naming-style=any
+variable-rgx=[a-z_][a-z0-9_]{0,30}$
